@@ -9,6 +9,7 @@ assignees: ''
 
 #### Checklist
 
+- [ ] I can connect to the device with a browser using this URL but with my devices IP: http://192.168.1.88/aircon/get_model_info
 - [ ] It was working in an earlier version (regression)
 - [ ] I checked other issues already, but found no answer/solution
 - [ ] I checked the documentation and wiki, but found no answer/solution
