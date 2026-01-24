@@ -33,6 +33,7 @@ In case you already updated the firmware or you bought a new device, you may wan
 This plugin retrieves sensor and mode data from a [Daikin WIFI controller](https://amzn.to/2MZDQjg) in your local network and allows you to set operation modes and target temperatures. As it is a plugin for [HomeBridge](https://github.com/nfarina/homebridge) you will have access to these features using Apple Home.
 
 It is recommended to configure your DHCP server to reserve a fixed IP for the wifi controller.
+
 This plugin can be installed using [Homebridge UI](https://github.com/oznu/homebridge-config-ui-x#readme).
 
 
