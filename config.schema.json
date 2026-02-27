@@ -187,6 +187,32 @@
         "default": true,
         "required": false
       },
+      "enableVerticalSwingSwitch": {
+        "title": "Enable Vertical Swing Switch (Faikout only)",
+        "description": "Adds a separate switch in HomeKit to independently control vertical (up/down) swing. Combined with the Horizontal Swing switch, this gives you 3 modes: vertical only, horizontal only, or 3D (both). Only works with Faikout controllers.",
+        "type": "boolean",
+        "default": false
+      },
+      "verticalSwingName": {
+        "title": "Vertical Swing switch name (optional)",
+        "description": "Custom name for the Vertical Swing switch. Default: 'Vertical Swing'.",
+        "type": "string",
+        "required": false,
+        "placeholder": "Vertical Swing"
+      },
+      "enableHorizontalSwingSwitch": {
+        "title": "Enable Horizontal Swing Switch (Faikout only)",
+        "description": "Adds a separate switch in HomeKit to independently control horizontal (left/right) swing. Combined with the Vertical Swing switch, this gives you 3 modes: vertical only, horizontal only, or 3D (both). Only works with Faikout controllers.",
+        "type": "boolean",
+        "default": false
+      },
+      "horizontalSwingName": {
+        "title": "Horizontal Swing switch name (optional)",
+        "description": "Custom name for the Horizontal Swing switch. Default: 'Horizontal Swing'.",
+        "type": "string",
+        "required": false,
+        "placeholder": "Horizontal Swing"
+      },
       "quietWebSocketLogging": {
         "title": "Quiet WebSocket Logging (Faikout only)",
         "description": "When enabled (default), reduces log noise from WebSocket heartbeat and button status updates. Status messages will use debug level instead of info level. Set to false for verbose debugging.",
@@ -269,6 +295,24 @@
         },
         "enableFanSpeedInSettings",
         "enableOscillationInSettings",
+        {
+          "type": "help",
+          "helpvalue": "<div style='background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>↕↔ Independent Swing Switches (Faikout only):</strong><br/><br/>Enable separate switches for vertical and horizontal swing to get 3 swing modes:<br/>• <strong>Vertical only</strong> - up/down airflow<br/>• <strong>Horizontal only</strong> - left/right airflow<br/>• <strong>3D mode</strong> - both switches ON<br/><br/>These appear as separate toggles in the Home app and work independently of the main oscillation setting above.</div>"
+        },
+        "enableVerticalSwingSwitch",
+        {
+          "key": "verticalSwingName",
+          "condition": {
+            "functionBody": "return model.enableVerticalSwingSwitch === true;"
+          }
+        },
+        "enableHorizontalSwingSwitch",
+        {
+          "key": "horizontalSwingName",
+          "condition": {
+            "functionBody": "return model.enableHorizontalSwingSwitch === true;"
+          }
+        },
         "disableFan",
         "fanMode",
         "fanPowerMode",

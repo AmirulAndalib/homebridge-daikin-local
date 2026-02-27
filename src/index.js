@@ -210,8 +210,8 @@ function Daikin(log, config) {
 
   this.uuid = config.uuid || '';
 
-  // Determine if using Faikin (ESP32-Faikin) or traditional Daikin API
-  this.isFaikin = (this.system === 'Faikin');
+  // Determine if using Faikout (ESP32-based) or traditional Daikin API
+  this.isFaikin = (this.system === 'Faikin' || this.system === 'Faikout');
 
   switch (this.system) {
     case 'Default': {
@@ -230,13 +230,14 @@ function Daikin(log, config) {
       this.basic_info = this.apiroute + '/skyfi/common/basic_info';
       break;}
 
-    case 'Faikin': {
+    case 'Faikin':
+    case 'Faikout': {
       this.get_sensor_info = this.apiroute + '/aircon/get_sensor_info';
       this.get_control_info = this.apiroute + '/aircon/get_control_info';
       this.get_model_info = this.apiroute + '/aircon/get_model_info';
       this.set_control_info = this.apiroute + '/aircon/set_control_info';
       this.basic_info = this.apiroute + '/common/basic_info';
-      this.faikin_control = this.apiroute + '/control'; // Faikin JSON control endpoint
+      this.faikin_control = this.apiroute + '/control'; // Faikout JSON control endpoint
       break;}
 
     default: {
@@ -292,6 +293,16 @@ function Daikin(log, config) {
   this.temperatureService = new Service.TemperatureSensor(this.name);
   this.humidityService = new Service.HumiditySensor(this.name);
 
+  // Swing switch services for independent vertical/horizontal control (Faikout)
+  this.verticalSwingName = config.verticalSwingName || 'Vertical Swing';
+  this.horizontalSwingName = config.horizontalSwingName || 'Horizontal Swing';
+  this.verticalSwingService = new Service.Switch(this.verticalSwingName, 'vertical-swing-switch');
+  this.verticalSwingService.setCharacteristic(Characteristic.ConfiguredName, this.verticalSwingName);
+  this.horizontalSwingService = new Service.Switch(this.horizontalSwingName, 'horizontal-swing-switch');
+  this.horizontalSwingService.setCharacteristic(Characteristic.ConfiguredName, this.horizontalSwingName);
+  this.Vertical_Swing = false;
+  this.Horizontal_Swing = false;
+
   // Note: Optional characteristics are now handled via linked services
   // when disableFan=true to ensure they appear in HeaterCooler settings
 
@@ -320,6 +331,10 @@ function Daikin(log, config) {
   this.enablePowerfulMode = !!config.enablePowerfulMode;
   this.enableNightQuietMode = !!config.enableNightQuietMode;
 
+  // Swing switch config options (Faikout independent vertical/horizontal control)
+  this.enableVerticalSwingSwitch = !!config.enableVerticalSwingSwitch;
+  this.enableHorizontalSwingSwitch = !!config.enableHorizontalSwingSwitch;
+
   // Config options for fan controls in settings (v1.5.1)
   this.enableFanSpeedInSettings = config.enableFanSpeedInSettings !== undefined ? config.enableFanSpeedInSettings : true;
   this.enableOscillationInSettings = config.enableOscillationInSettings !== undefined ? config.enableOscillationInSettings : true;
@@ -331,7 +346,7 @@ function Daikin(log, config) {
   // Config option for quiet WebSocket logging (v1.5.2)
   this.quietWebSocketLogging = config.quietWebSocketLogging !== undefined ? config.quietWebSocketLogging : true;
 
-  // WebSocket connection for Faikin (used for econo/powerful/quiet control)
+  // WebSocket connection for Faikout (used for econo/powerful/quiet control)
   this.faikinWs = null;
   this.faikinWsReconnectTimer = null;
   this.faikinWsHeartbeat = null;
@@ -554,7 +569,7 @@ Daikin.prototype = {
   },
 
   sendFaikinControl(controlData, callback) {
-    this.log.debug('sendFaikinControl: Sending control command to Faikin: %s', JSON.stringify(controlData));
+    this.log.debug('sendFaikinControl: Sending control command to Faikout: %s', JSON.stringify(controlData));
 
     const path = this.apiroute + '/control';
 
@@ -598,7 +613,7 @@ Daikin.prototype = {
     request.end((error, response) => {
       if (error) {
         this.log.warn('sendFaikinControl: JSON control endpoint failed (%s), trying WebSocket fallback', error.message);
-        // Fallback to WebSocket for Faikin S21 protocol (econo/powerful/quiet modes)
+        // Fallback to WebSocket for Faikout S21 protocol (econo/powerful/quiet modes)
         this.sendFaikinWebSocketCommand(controlData, callback);
         return;
       }
@@ -677,7 +692,7 @@ Daikin.prototype = {
     }, {skipCache: true});
   },
 
-  // WebSocket connection management for Faikin
+  // WebSocket connection management for Faikout
   connectFaikinWebSocket() {
     if (this.faikinWs && this.faikinWs.readyState === WebSocket.OPEN) {
       this.log.debug('connectFaikinWebSocket: Already connected');
@@ -703,19 +718,19 @@ Daikin.prototype = {
       });
 
       this.faikinWs.on('open', () => {
-        this.log[logMethod]('connectFaikinWebSocket: WebSocket connected to Faikin');
+        this.log[logMethod]('connectFaikinWebSocket: WebSocket connected to Faikout');
         if (this.quietWebSocketLogging) {
           this.log.info('connectFaikinWebSocket: Quiet WebSocket logging enabled - status updates will use debug level');
         } else {
           this.log.info('connectFaikinWebSocket: Verbose WebSocket logging enabled - all status updates will be logged');
         }
 
-        // Start heartbeat to receive status updates (required by Faikin)
-        // Based on Faikin web UI: setInterval(function() {if(!ws)c();else ws.send('');}, 1000);
+        // Start heartbeat to receive status updates (required by Faikout)
+        // Based on Faikout web UI: setInterval(function() {if(!ws)c();else ws.send('');}, 1000);
         this.faikinWsHeartbeat = setInterval(() => {
           if (this.faikinWs && this.faikinWs.readyState === 1) {
             this.faikinWs.send(''); // Send empty heartbeat message
-            this.log.debug('connectFaikinWebSocket: Sent heartbeat to Faikin');
+            this.log.debug('connectFaikinWebSocket: Sent heartbeat to Faikout');
           }
         }, 1000);
 
@@ -735,12 +750,12 @@ Daikin.prototype = {
           
           // Only log WebSocket messages if verbose logging is enabled
           if (!this.quietWebSocketLogging) {
-            this.log.info('connectFaikinWebSocket: <<<< Received status from Faikin: %s', JSON.stringify(message));
+            this.log.info('connectFaikinWebSocket: <<<< Received status from Faikout: %s', JSON.stringify(message));
           } else {
-            this.log.debug('connectFaikinWebSocket: <<<< Received status from Faikin: %s', JSON.stringify(message));
+            this.log.debug('connectFaikinWebSocket: <<<< Received status from Faikout: %s', JSON.stringify(message));
           }
           
-          // Update local state based on received status from Faikin (including rejections)
+          // Update local state based on received status from Faikout (including rejections)
           if (message.econo !== undefined) {
             const econoState = !!message.econo;
             const oldState = this.Econo_Mode;
@@ -867,7 +882,7 @@ Daikin.prototype = {
 
     const message = JSON.stringify(controlData);
     const logMethod = this.quietWebSocketLogging ? 'debug' : 'info';
-    this.log[logMethod]('sendFaikinWebSocketCommand: >>>> Sending to Faikin: %s', message);
+    this.log[logMethod]('sendFaikinWebSocketCommand: >>>> Sending to Faikout: %s', message);
     
     try {
       this.faikinWs.send(message, (error) => {
@@ -875,7 +890,7 @@ Daikin.prototype = {
           this.log.error('sendFaikinWebSocketCommand: Error sending command: %s', error.message);
           if (callback) callback(error);
         } else {
-          this.log[logMethod]('sendFaikinWebSocketCommand: Command sent successfully, waiting for Faikin response...');
+          this.log[logMethod]('sendFaikinWebSocketCommand: Command sent successfully, waiting for Faikout response...');
           if (callback) callback(null);
         }
       });
@@ -990,12 +1005,27 @@ Daikin.prototype = {
       const responseValues = this.parseResponse(body);
       
       if (this.isFaikin) {
-        // Faikin uses separate swingh and swingv booleans
+        // Faikout uses separate swingh and swingv booleans
         const swingH = responseValues.swingh === '1' || responseValues.swingh === 'true' || responseValues.swingh === true;
         const swingV = responseValues.swingv === '1' || responseValues.swingv === 'true' || responseValues.swingv === true;
-        this.log.debug('getSwingMode (Faikin): swingh=%s, swingv=%s', swingH, swingV);
-        // Enable HomeKit swing if either horizontal or vertical swing is on
-        const isEnabled = swingH || swingV;
+        this.log.debug('getSwingMode (Faikout): swingh=%s, swingv=%s, swingMode config=%s', swingH, swingV, this.swingMode);
+
+        // Update cached swing states for the separate switches
+        this.Vertical_Swing = swingV;
+        this.Horizontal_Swing = swingH;
+
+        // Determine HomeKit swing state based on swingMode config
+        // swingMode '1' = vertical, '2' = horizontal, '3' = 3D (both)
+        let isEnabled = false;
+        if (this.swingMode === '1') {
+          isEnabled = swingV;
+        } else if (this.swingMode === '2') {
+          isEnabled = swingH;
+        } else {
+          // '3' or default: enabled if both are on
+          isEnabled = swingH && swingV;
+        }
+
         callback(null, isEnabled ? Characteristic.SwingMode.SWING_ENABLED : Characteristic.SwingMode.SWING_DISABLED);
       } else {
         // Traditional Daikin f_dir values:
@@ -1022,23 +1052,50 @@ Daikin.prototype = {
 
   setSwingMode(swing, callback) {
     if (this.isFaikin) {
-      // Faikin uses separate swingh and swingv booleans
-      // When enabling swing, enable both horizontal and vertical (3D swing)
-      // When disabling, disable both
+      // Faikout uses separate swingh and swingv booleans
+      // Use swingMode config to determine which swing to enable:
+      // '1' = vertical only, '2' = horizontal only, '3' = 3D (both)
       const enableSwing = (swing !== Characteristic.SwingMode.SWING_DISABLED);
+      let swingH = false;
+      let swingV = false;
+      if (enableSwing) {
+        if (this.swingMode === '1') {
+          swingV = true;
+        } else if (this.swingMode === '2') {
+          swingH = true;
+        } else {
+          // '3' or default: enable both (3D)
+          swingH = true;
+          swingV = true;
+        }
+      }
+
       const controlData = {
-        swingh: enableSwing,
-        swingv: enableSwing,
+        swingh: swingH,
+        swingv: swingV,
       };
+
       this.log.info(
-        'setSwingMode (Faikin): HomeKit requested swing mode: %s (swingh=%s, swingv=%s)',
+        'setSwingMode (Faikout): HomeKit requested swing mode: %s, swingMode config: %s (swingh=%s, swingv=%s)',
         swing,
-        enableSwing,
-        enableSwing,
+        this.swingMode,
+        swingH,
+        swingV,
       );
       this.HeaterCooler_SwingMode = swing;
       this.log.debug('setSwingMode: update SwingMode: %s.', this.HeaterCooler_SwingMode);
-      
+
+      // Update cached states for separate swing switches
+      this.Vertical_Swing = swingV;
+      this.Horizontal_Swing = swingH;
+      if (this.enableVerticalSwingSwitch) {
+        this.verticalSwingService.getCharacteristic(Characteristic.On).updateValue(swingV);
+      }
+
+      if (this.enableHorizontalSwingSwitch) {
+        this.horizontalSwingService.getCharacteristic(Characteristic.On).updateValue(swingH);
+      }
+
       this.sendFaikinControl(controlData, () => {
         this.HeaterCooler_SwingMode = swing;
         this.log.debug('setSwingMode: confirmed SwingMode: %s.', this.HeaterCooler_SwingMode);
@@ -1060,6 +1117,92 @@ Daikin.prototype = {
           callback();
         }, {skipCache: true, skipQueue: true});
       }, {skipCache: true});
+    }
+  },
+
+  // Separate Vertical Swing switch (Faikout only)
+  getVerticalSwing: function (callback) {
+    this.sendGetRequest(this.get_control_info, body => {
+      const responseValues = this.parseResponse(body);
+      const swingV = responseValues.swingv === '1' || responseValues.swingv === 'true' || responseValues.swingv === true;
+      this.log.debug('getVerticalSwing (Faikout): swingv=%s', swingV);
+      callback(null, swingV);
+    });
+  },
+
+  getVerticalSwingFV: function (callback) {
+    const counter = ++this.counter;
+    this.log.debug('getVerticalSwingFV: early callback with cached state: %s (%d).', this.Vertical_Swing, counter);
+    callback(null, this.Vertical_Swing);
+    this.getVerticalSwing((error, state) => {
+      this.Vertical_Swing = state;
+      this.verticalSwingService.getCharacteristic(Characteristic.On).updateValue(this.Vertical_Swing);
+      this.log.debug('getVerticalSwingFV: update VerticalSwing: %s (%d).', this.Vertical_Swing, counter);
+    });
+  },
+
+  setVerticalSwing: function (value, callback) {
+    this.log.info('setVerticalSwing (Faikout): HomeKit requested vertical swing %s.', value ? 'ON' : 'OFF');
+    this.Vertical_Swing = value;
+    const controlData = {swingv: value};
+    this.sendFaikinControl(controlData, () => {
+      this.log.debug('setVerticalSwing: confirmed VerticalSwing: %s.', this.Vertical_Swing);
+      // Update the main oscillation toggle to reflect the combined state
+      this._updateMainSwingMode();
+      if (callback) callback();
+    });
+  },
+
+  // Separate Horizontal Swing switch (Faikout only)
+  getHorizontalSwing: function (callback) {
+    this.sendGetRequest(this.get_control_info, body => {
+      const responseValues = this.parseResponse(body);
+      const swingH = responseValues.swingh === '1' || responseValues.swingh === 'true' || responseValues.swingh === true;
+      this.log.debug('getHorizontalSwing (Faikout): swingh=%s', swingH);
+      callback(null, swingH);
+    });
+  },
+
+  getHorizontalSwingFV: function (callback) {
+    const counter = ++this.counter;
+    this.log.debug('getHorizontalSwingFV: early callback with cached state: %s (%d).', this.Horizontal_Swing, counter);
+    callback(null, this.Horizontal_Swing);
+    this.getHorizontalSwing((error, state) => {
+      this.Horizontal_Swing = state;
+      this.horizontalSwingService.getCharacteristic(Characteristic.On).updateValue(this.Horizontal_Swing);
+      this.log.debug('getHorizontalSwingFV: update HorizontalSwing: %s (%d).', this.Horizontal_Swing, counter);
+    });
+  },
+
+  setHorizontalSwing: function (value, callback) {
+    this.log.info('setHorizontalSwing (Faikout): HomeKit requested horizontal swing %s.', value ? 'ON' : 'OFF');
+    this.Horizontal_Swing = value;
+    const controlData = {swingh: value};
+    this.sendFaikinControl(controlData, () => {
+      this.log.debug('setHorizontalSwing: confirmed HorizontalSwing: %s.', this.Horizontal_Swing);
+      // Update the main oscillation toggle to reflect the combined state
+      this._updateMainSwingMode();
+      if (callback) callback();
+    });
+  },
+
+  // Helper: update the main SwingMode characteristic after individual swing changes
+  _updateMainSwingMode: function () {
+    let isEnabled = false;
+    if (this.swingMode === '1') {
+      isEnabled = this.Vertical_Swing;
+    } else if (this.swingMode === '2') {
+      isEnabled = this.Horizontal_Swing;
+    } else {
+      isEnabled = this.Vertical_Swing && this.Horizontal_Swing;
+    }
+
+    this.HeaterCooler_SwingMode = isEnabled ? Characteristic.SwingMode.SWING_ENABLED : Characteristic.SwingMode.SWING_DISABLED;
+
+    // Update on both HeaterCooler and Fan services if they have SwingMode
+    this.heaterCoolerService.getCharacteristic(Characteristic.SwingMode).updateValue(this.HeaterCooler_SwingMode);
+    if (!this.disableFan) {
+      this.FanService.getCharacteristic(Characteristic.SwingMode).updateValue(this.HeaterCooler_SwingMode);
     }
   },
 
@@ -1355,10 +1498,10 @@ Daikin.prototype = {
 
   getEconoMode: function (callback) {
     if (this.isFaikin) {
-      // Faikin uses JSON control API
+      // Faikout uses JSON control API
       this.sendGetRequest(this.get_control_info, body => {
         const responseValues = this.parseResponse(body);
-        this.log.debug('getEconoMode (Faikin): econo is: %s', responseValues.econo);
+        this.log.debug('getEconoMode (Faikout): econo is: %s', responseValues.econo);
         const isEnabled = responseValues.econo === '1' || responseValues.econo === 'true' || responseValues.econo === true;
         callback(null, isEnabled);
       });
@@ -1407,7 +1550,7 @@ Daikin.prototype = {
     }
     
     if (this.isFaikin) {
-      // Faikin uses JSON control API - send POST to /control endpoint
+      // Faikout uses JSON control API - send POST to /control endpoint
       const controlData = {
         econo: value,
       };
@@ -1417,11 +1560,11 @@ Daikin.prototype = {
         controlData.fan = 'A'; // Reset fan to Auto if it was in Quiet mode
       }
 
-      this.log.info('setEconoMode (Faikin): Sending control data: %s', JSON.stringify(controlData));
+      this.log.info('setEconoMode (Faikout): Sending control data: %s', JSON.stringify(controlData));
       this.Econo_Mode = value;
       this.log.debug('setEconoMode: update EconoMode: %s.', this.Econo_Mode);
       
-      // For Faikin, we need to send a POST request with JSON payload
+      // For Faikout, we need to send a POST request with JSON payload
       this.sendFaikinControl(controlData, () => {
         this.Econo_Mode = value;
         this.log.debug('setEconoMode: confirmed EconoMode: %s.', this.Econo_Mode);
@@ -1451,10 +1594,10 @@ Daikin.prototype = {
 
   getPowerfulMode: function (callback) {
     if (this.isFaikin) {
-      // Faikin uses JSON control API
+      // Faikout uses JSON control API
       this.sendGetRequest(this.get_control_info, body => {
         const responseValues = this.parseResponse(body);
-        this.log.debug('getPowerfulMode (Faikin): powerful is: %s', responseValues.powerful);
+        this.log.debug('getPowerfulMode (Faikout): powerful is: %s', responseValues.powerful);
         const isEnabled = responseValues.powerful === '1' || responseValues.powerful === 'true' || responseValues.powerful === true;
         callback(null, isEnabled);
       });
@@ -1503,7 +1646,7 @@ Daikin.prototype = {
     }
     
     if (this.isFaikin) {
-      // Faikin uses JSON control API - send POST to /control endpoint
+      // Faikout uses JSON control API - send POST to /control endpoint
       const controlData = {
         powerful: value,
       };
@@ -1513,7 +1656,7 @@ Daikin.prototype = {
         controlData.fan = 'A'; // Reset fan to Auto if it was in Quiet mode
       }
 
-      this.log.info('setPowerfulMode (Faikin): Sending control data: %s', JSON.stringify(controlData));
+      this.log.info('setPowerfulMode (Faikout): Sending control data: %s', JSON.stringify(controlData));
       this.Powerful_Mode = value;
       this.log.debug('setPowerfulMode: update PowerfulMode: %s.', this.Powerful_Mode);
       
@@ -1546,10 +1689,10 @@ Daikin.prototype = {
 
   getNightQuietMode: function (callback) {
     if (this.isFaikin) {
-      // Faikin uses fan='Q' for night/quiet mode
+      // Faikout uses fan='Q' for night/quiet mode
       this.sendGetRequest(this.get_control_info, body => {
         const responseValues = this.parseResponse(body);
-        this.log.debug('getNightQuietMode (Faikin): fan is: %s', responseValues.fan);
+        this.log.debug('getNightQuietMode (Faikout): fan is: %s', responseValues.fan);
         // Check if fan is set to 'Q' (Night/Quiet mode)
         const isEnabled = responseValues.fan === 'Q';
         callback(null, isEnabled);
@@ -1601,8 +1744,8 @@ Daikin.prototype = {
     }
     
     if (this.isFaikin) {
-      // Faikin uses fan='Q' for night/quiet mode, 'A' for auto
-      // According to Faikin API docs: fan can be 'A' (Auto), 'Q' (Night), or '1'-'5' for manual levels
+      // Faikout uses fan='Q' for night/quiet mode, 'A' for auto
+      // According to Faikout API docs: fan can be 'A' (Auto), 'Q' (Night), or '1'-'5' for manual levels
       const controlData = {
         fan: value ? 'Q' : 'A',
       };
@@ -1612,7 +1755,7 @@ Daikin.prototype = {
         controlData.powerful = false;
       }
 
-      this.log.info('setNightQuietMode (Faikin): Sending control data: %s', JSON.stringify(controlData));
+      this.log.info('setNightQuietMode (Faikout): Sending control data: %s', JSON.stringify(controlData));
       this.NightQuiet_Mode = value;
       this.log.debug('setNightQuietMode: update NightQuietMode: %s.', this.NightQuiet_Mode);
       
@@ -1743,16 +1886,30 @@ getFanSpeed: function (callback) {
     this.log.info('setFanSpeed: HomeKit requested a FAN speed of %s Percent.', value);
     value = this.rawToDaikinSpeed(value);
     this.log.debug('setFanSpeed: this translates to Daikin f_rate value: %s', value);
-    this.sendGetRequest(this.get_control_info, body => {
-      let query = body.replace(/,/g, '&').replace(/f_rate=[01234567AB]/, `f_rate=${value}`);
-      query = query.replace(/,/g, '&').replace(/b_f_rate=[01234567AB]/, `b_f_rate=${value}`);
-      this.log.debug('setFanSpeed: Query is: %s', query);
-      this.Fan_Speed = this.daikinSpeedToRaw(value); // FV2105010
-      this.log.debug('setFanSpeed: update Speed: %s.', this.Fan_Speed); // FV2105010
-      this.sendGetRequest(this.set_control_info + '?' + query, _response => {
+
+    if (this.isFaikin) {
+      // Faikout: use JSON control API to set fan speed only, without affecting swing
+      const controlData = {fan: String(value)};
+      this.log.info('setFanSpeed (Faikout): Sending fan control: %s', JSON.stringify(controlData));
+      this.Fan_Speed = this.daikinSpeedToRaw(value);
+      this.log.debug('setFanSpeed: update Speed: %s.', this.Fan_Speed);
+      this.sendFaikinControl(controlData, () => {
+        this.log.debug('setFanSpeed (Faikout): confirmed fan speed.');
         if (!(callback === undefined)) callback();
-      }, {skipCache: true, skipQueue: true});
-    }, {skipCache: true});
+      });
+    } else {
+      // Traditional Daikin API
+      this.sendGetRequest(this.get_control_info, body => {
+        let query = body.replace(/,/g, '&').replace(/f_rate=[01234567AB]/, `f_rate=${value}`);
+        query = query.replace(/,/g, '&').replace(/b_f_rate=[01234567AB]/, `b_f_rate=${value}`);
+        this.log.debug('setFanSpeed: Query is: %s', query);
+        this.Fan_Speed = this.daikinSpeedToRaw(value); // FV2105010
+        this.log.debug('setFanSpeed: update Speed: %s.', this.Fan_Speed); // FV2105010
+        this.sendGetRequest(this.set_control_info + '?' + query, _response => {
+          if (!(callback === undefined)) callback();
+        }, {skipCache: true, skipQueue: true});
+      }, {skipCache: true});
+    }
   },
 
   getTemperatureDisplayUnits: function (callback) {
@@ -1979,6 +2136,50 @@ getFanSpeed: function (callback) {
         this.log.info('Toggle this switch ON and check the logs to identify it');
         this.log.info('You can rename this switch in the Home app');
         this.log.info('======================================');
+    }
+
+    // Separate Vertical Swing switch (Faikout only)
+    if (this.enableVerticalSwingSwitch && this.isFaikin) {
+        this.verticalSwingService
+            .getCharacteristic(Characteristic.On)
+            .on('get', this.getVerticalSwingFV.bind(this))
+            .on('set', this.setVerticalSwing.bind(this));
+        
+        this.verticalSwingService
+            .getCharacteristic(Characteristic.ConfiguredName)
+            .on('set', (value, callback) => {
+                this.log.info('Vertical Swing switch renamed to: "%s"', value);
+                callback();
+            });
+        
+        services.push(this.verticalSwingService);
+        
+        this.log.info('===== VERTICAL SWING SWITCH ENABLED =====');
+        this.log.info('Switch name configured as: "%s"', this.verticalSwingName);
+        this.log.info('Controls vertical (up/down) swing independently');
+        this.log.info('==========================================');
+    }
+
+    // Separate Horizontal Swing switch (Faikout only)
+    if (this.enableHorizontalSwingSwitch && this.isFaikin) {
+        this.horizontalSwingService
+            .getCharacteristic(Characteristic.On)
+            .on('get', this.getHorizontalSwingFV.bind(this))
+            .on('set', this.setHorizontalSwing.bind(this));
+        
+        this.horizontalSwingService
+            .getCharacteristic(Characteristic.ConfiguredName)
+            .on('set', (value, callback) => {
+                this.log.info('Horizontal Swing switch renamed to: "%s"', value);
+                callback();
+            });
+        
+        services.push(this.horizontalSwingService);
+        
+        this.log.info('===== HORIZONTAL SWING SWITCH ENABLED =====');
+        this.log.info('Switch name configured as: "%s"', this.horizontalSwingName);
+        this.log.info('Controls horizontal (left/right) swing independently');
+        this.log.info('============================================');
     }
 
     return services;
