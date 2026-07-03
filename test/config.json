@@ -1,0 +1,50 @@
+{
+  "bridge": {
+    "name": "Homebridge Dev",
+    "username": "CC:22:3E:E3:CE:30",
+    "port": 51826,
+    "pin": "031-45-154"
+  },
+  "description": "Local development config for homebridge-daikin-local. Start the mock server first: npm run mock:daikin",
+  "accessories": [
+    {
+      "accessory": "Daikin-Local",
+      "name": "Mock Living Room",
+      "apiroute": "http://127.0.0.1:18765",
+      "temperature_unit": "C",
+      "system": "Default",
+      "swingMode": "3",
+      "defaultMode": "3",
+      "enableHumiditySensor": true,
+      "enableTemperatureSensor": true,
+      "enableEconoMode": true,
+      "enablePowerfulMode": true,
+      "enableNightQuietMode": true,
+      "enableACModes": true,
+      "fanMode": "FAN",
+      "fanName": "Mock Living Room Fan",
+      "response": 2000,
+      "deadline": 60000,
+      "retries": 2
+    },
+    {
+      "accessory": "Daikin-Local",
+      "name": "Mock Faikout",
+      "apiroute": "http://127.0.0.1:18766",
+      "temperature_unit": "C",
+      "system": "Faikout",
+      "swingMode": "3",
+      "defaultMode": "3",
+      "enableEconoMode": true,
+      "enablePowerfulMode": true,
+      "enableNightQuietMode": true,
+      "quietWebSocketLogging": true,
+      "fanMode": "FAN",
+      "fanName": "Mock Faikout Fan",
+      "response": 2000,
+      "deadline": 60000,
+      "retries": 2
+    }
+  ],
+  "platforms": []
+}

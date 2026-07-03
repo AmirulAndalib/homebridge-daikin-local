@@ -46,3 +46,9 @@ espi32-faikin-main/
 # Scripts
 *.sh
 esp32-faikin-main/
+
+# Local Homebridge dev runtime
+test/.homebridge/
+test/accessories/
+test/cachedAccessories
+test/persist/

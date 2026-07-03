@@ -3,13 +3,17 @@
 
 function parseResponse(response) {
   const vals = {};
-  if (response) {
-    const items = response.split(',');
-    const length = items.length;
-    for (let i = 0; i < length; i++) {
-      const keyValue = items[i].split('=');
-      vals[keyValue[0]] = keyValue[1];
+  if (!response) {
+    return vals;
+  }
+
+  for (const item of response.split(',')) {
+    const separator = item.indexOf('=');
+    if (separator === -1) {
+      continue;
     }
+
+    vals[item.slice(0, separator)] = item.slice(separator + 1);
   }
 
   return vals;
