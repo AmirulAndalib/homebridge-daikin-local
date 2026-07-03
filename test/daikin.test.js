@@ -3,7 +3,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {parseResponse} = require('../src/utils.js');
-const {createDaikin, readCurrentTemperature, readFanSpeed} = require('./helpers/mock-homebridge.js');
+const {
+  createDaikin,
+  readCurrentTemperature,
+  readFanSpeed,
+  readHeaterCoolerState,
+  readCoolingTemperature,
+  writeCoolingTemperature,
+} = require('./helpers/mock-homebridge.js');
 
 test('Daikin uses parseResponse for API payloads', () => {
   const daikin = createDaikin();
@@ -51,6 +58,51 @@ test('Skyfi system builds skyfi API routes', () => {
   assert.equal(daikin.get_sensor_info, 'https://192.168.1.77/skyfi/aircon/get_sensor_info');
   assert.equal(daikin.get_control_info, 'https://192.168.1.77/skyfi/aircon/get_control_info');
   assert.equal(daikin.basic_info, 'https://192.168.1.77/skyfi/common/basic_info');
+});
+
+test('getHeaterCoolerState reports heating when mode is 4', async () => {
+  const daikin = createDaikin();
+  daikin.sendGetRequest = (_path, callback) => {
+    callback('ret=OK,pow=1,mode=4,stemp=20.0,dt3=20.0,dt5=20.0,dt7=23.0');
+  };
+
+  const state = await readHeaterCoolerState(daikin);
+
+  assert.equal(state, 2);
+});
+
+test('getCoolingTemperature reads dt7 while unit is heating', async () => {
+  const daikin = createDaikin();
+  daikin.sendGetRequest = (_path, callback) => {
+    callback('ret=OK,pow=1,mode=4,stemp=20.0,dt3=20.0,dt5=20.0,dt7=23.0');
+  };
+
+  const temperature = await readCoolingTemperature(daikin);
+
+  assert.equal(temperature, 23);
+});
+
+test('setCoolingTemperature routes to heating setpoint when mode is 4', async () => {
+  const daikin = createDaikin();
+  const requests = [];
+
+  daikin.sendGetRequest = (path, callback) => {
+    requests.push(path);
+
+    if (path.includes('get_control_info')) {
+      callback('ret=OK,pow=1,mode=4,stemp=20.0,dt3=20.0,dt5=18.0,dt7=23.0');
+      return;
+    }
+
+    callback('ret=OK,adv=');
+  };
+
+  await writeCoolingTemperature(daikin, 16);
+
+  const setRequest = requests.find(path => path.includes('set_control_info'));
+  assert.match(setRequest, /stemp=16\.0/);
+  assert.match(setRequest, /dt5=16\.0/);
+  assert.doesNotMatch(setRequest, /dt7=16\.0/);
 });
 
 test('Faikout system enables Faikout mode and control endpoint', () => {

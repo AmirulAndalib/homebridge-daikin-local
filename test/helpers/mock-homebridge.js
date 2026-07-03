@@ -55,7 +55,7 @@ const Characteristic = {
   TemperatureDisplayUnits: {CELSIUS: 0, FAHRENHEIT: 1},
   Active: {ACTIVE: 1, INACTIVE: 0},
   SwingMode: {SWING_ENABLED: 1, SWING_DISABLED: 0},
-  CurrentHeaterCoolerState: {IDLE: 0, HEATING: 1, COOLING: 2},
+  CurrentHeaterCoolerState: {INACTIVE: 0, IDLE: 1, HEATING: 2, COOLING: 3},
   TargetHeaterCoolerState: {AUTO: 0, HEAT: 1, COOL: 2},
   ConfiguredName: 'ConfiguredName',
   Manufacturer: 'Manufacturer',
@@ -144,8 +144,63 @@ function readFanSpeed(daikin) {
   });
 }
 
+/**
+ * @param {object} daikin Daikin accessory instance.
+ * @returns {Promise<number>} Current heater/cooler state reported to HomeKit.
+ */
+function readHeaterCoolerState(daikin) {
+  return new Promise((resolve, reject) => {
+    daikin.getHeaterCoolerState((error, value) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(value);
+    });
+  });
+}
+
+/**
+ * @param {object} daikin Daikin accessory instance.
+ * @returns {Promise<number>} Cooling threshold reported to HomeKit.
+ */
+function readCoolingTemperature(daikin) {
+  return new Promise((resolve, reject) => {
+    daikin.getCoolingTemperature((error, value) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(value);
+    });
+  });
+}
+
+/**
+ * @param {object} daikin Daikin accessory instance.
+ * @param {number} temperature Target temperature in degrees Celsius.
+ * @returns {Promise<void>}
+ */
+function writeCoolingTemperature(daikin, temperature) {
+  return new Promise((resolve, reject) => {
+    daikin.setCoolingTemperature(temperature, error => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
 module.exports = {
   createDaikin,
   readCurrentTemperature,
   readFanSpeed,
+  readHeaterCoolerState,
+  readCoolingTemperature,
+  writeCoolingTemperature,
 };

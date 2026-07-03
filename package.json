@@ -1,6 +1,6 @@
 {
   "name": "homebridge-daikin-local",
-  "version": "1.5.8",
+  "version": "1.5.9",
   "description": "daikin plugin for homebridge: https://github.com/homebridge/homebridge",
   "license": "MIT",
   "keywords": [
@@ -54,7 +54,9 @@
     "mock:daikin": "node dev/mock-daikin-server.js",
     "mock:faikout": "MOCK_DAIKIN_PORT=18766 MOCK_DAIKIN_SYSTEM=Faikout node dev/mock-daikin-server.js",
     "mock:all": "node dev/start-mock-servers.js",
-    "dev": "npx homebridge -P . -U ./test -D"
+    "dev": "npx homebridge -P . -U ./test -D",
+    "dev:live": "bash -c 'cp test/config.live.json test/config.json && npx homebridge -P . -U ./test -D'",
+    "probe:device": "bash dev/probe-device.sh"
   },
   "devDependencies": {
     "@eslint/json": "^2.0.1",

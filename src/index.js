@@ -20,7 +20,19 @@ const WebSocket = require('ws');
 const packageFile = require('../package.json');
 const Cache = require('./cache.js');
 const Queue = require('./queue.js');
-const {parseResponse, parseTemperatureDisplayUnits, daikinSpeedToRaw, rawToDaikinSpeed} = require('./utils.js');
+const {
+  parseResponse,
+  parseTemperatureDisplayUnits,
+  daikinSpeedToRaw,
+  rawToDaikinSpeed,
+  isDaikinAutoMode,
+  mapDaikinModeToCurrentHeaterCoolerState,
+  mapDaikinModeToTargetHeaterCoolerState,
+  getCoolingThresholdFromControl,
+  getHeatingThresholdFromControl,
+  shouldRouteCoolingSetToHeating,
+  shouldRouteHeatingSetToCooling,
+} = require('./utils.js');
 
 function Daikin(log, config) {
   this.log = log;
@@ -955,7 +967,7 @@ Daikin.prototype = {
         const responseValues = this.parseResponse(body);
         this.log.info('setActive: Power is %s, Mode is %s. Going to change power to %s.', responseValues.pow, responseValues.mode, power);
         let query = body.replace(/,/g, '&').replace(/pow=[01]/, `pow=${power}`);
-        if (responseValues.mode === '6' || responseValues.mode === '2' || responseValues.mode === '1' || responseValues.mode === '0') {// If AC is in Fan-mode, or an Humidity-mode then use the default mode.
+        if (responseValues.mode === '6' || responseValues.mode === '2' || isDaikinAutoMode(responseValues.mode)) {// Fan, dry, or auto: apply configured default mode when powering on.
           switch (this.defaultMode) {
             case '1': { // Auto
             this.log.warn('Auto');
@@ -1215,29 +1227,11 @@ Daikin.prototype = {
   getHeaterCoolerState(callback) {
         this.sendGetRequest(this.get_control_info, body => {
               const responseValues = this.parseResponse(body);
-              let status = Characteristic.CurrentHeaterCoolerState.INACTIVE;
-              if (responseValues.pow === '1') {
-                  switch (responseValues.mode) {
-                      case '0': // Auto
-                      case '1': // humidification
-                      case '2': // dehumidification
-                      case '6': { // FAN-Mode
-                          status = Characteristic.CurrentHeaterCoolerState.IDLE;
-                          break;}
-
-                          case '3': {
-                          status = Characteristic.CurrentHeaterCoolerState.COOLING;
-                          break;}
-
-                          case '4': {
-                          status = Characteristic.CurrentHeaterCoolerState.HEATING;
-                          break;}
-
-                          default: {
-                          status = Characteristic.CurrentHeaterCoolerState.IDLE;
-                          }
-                  }
-              }
+              const status = mapDaikinModeToCurrentHeaterCoolerState(
+                responseValues.mode,
+                responseValues.pow,
+                Characteristic.CurrentHeaterCoolerState
+              );
 
               this.log.debug('getHeaterCoolerState is %s', status);
               callback(null, status);
@@ -1258,38 +1252,11 @@ Daikin.prototype = {
         this.sendGetRequest(this.get_control_info, body => {
                 const responseValues = this.parseResponse(body);
                 this.log.debug('getTargetHeaterCoolerState responseValues.pow is %s', responseValues.pow);
-                let status = Characteristic.TargetHeaterCoolerState.AUTO;
-                if (responseValues.pow === '1') {
-                    switch (responseValues.mode) {
-                        case '0': { // automatic
-                            status = Characteristic.TargetHeaterCoolerState.AUTO;
-                            break;}
-
-                        case '1': { // humidification
-                            status = Characteristic.TargetHeaterCoolerState.AUTO;
-                            break;}
-
-                        case '2': { // dehumidification
-                            status = Characteristic.TargetHeaterCoolerState.AUTO;
-                            break;}
-
-                        case '3': { // cool
-                            status = Characteristic.TargetHeaterCoolerState.COOL;
-                            break;}
-
-                        case '4': { // heat
-                            status = Characteristic.TargetHeaterCoolerState.HEAT;
-                            break;}
-
-                        case '6': { // AUTO or FAN
-                            status = Characteristic.TargetHeaterCoolerState.AUTO;
-                            break;}
-
-                        default: {
-                            status = Characteristic.TargetHeaterCoolerState.AUTO;
-                        }
-                    }
-                }
+                const status = mapDaikinModeToTargetHeaterCoolerState(
+                  responseValues.mode,
+                  responseValues.pow,
+                  Characteristic.TargetHeaterCoolerState
+                );
 
                 this.log.debug('getTargetHeaterCoolerState is %s', status);
                 callback(null, status);
@@ -1408,16 +1375,7 @@ Daikin.prototype = {
   getCoolingTemperature(callback) {
           this.sendGetRequest(this.get_control_info, body => {
                   const responseValues = this.parseResponse(body);
-                  const stemp = Number.parseFloat(responseValues.stemp);
-                  const dt3 = Number.parseFloat(responseValues.dt3);
-                  this.log.debug('stemp: %s', stemp); // stemp usually holds the controllers target temperature
-                  this.log.debug('dt3: %s', dt3); // except when it is or was in dehumidification mode, then stemp equals "M" and the temperature is in dt3.
-                  let coolingThresholdTemperature;
-                  if (Number.isNaN(stemp) || responseValues.stemp === 'M') // FV 16.6.21 detected that stemp is sometimes a NaN
-                    coolingThresholdTemperature = dt3;
-                  else
-                    coolingThresholdTemperature = stemp;
-                  if (coolingThresholdTemperature < 18) coolingThresholdTemperature = 18; // to fix #264
+                  const coolingThresholdTemperature = getCoolingThresholdFromControl(responseValues);
                   this.log.debug('getCoolingTemperature: parsed float is %s', coolingThresholdTemperature);
                   callback(null, coolingThresholdTemperature);
           });
@@ -1436,12 +1394,20 @@ Daikin.prototype = {
 
   setCoolingTemperature(temperature, callback) {
           this.sendGetRequest(this.get_control_info, body => {
+          const responseValues = this.parseResponse(body);
+          if (shouldRouteCoolingSetToHeating(responseValues.mode)) {
+            this.log.info('setCoolingTemperature: unit is in heat mode, routing to setHeatingTemperature.');
+            this.setHeatingTemperature(temperature, callback);
+            return;
+          }
+
           temperature = Math.round(temperature * 2) / 2; // Daikin only supports steps of 0.5 degree
           temperature = temperature.toFixed(1); // Daikin always expects a precision of 1
           const query = body
             .replace(/,/g, '&')
             .replace(/stemp=[\d.]+/, `stemp=${temperature}`)
-            .replace(/dt3=[\d.]+/, `dt3=${temperature}`);
+            .replace(/dt3=[\d.]+/, `dt3=${temperature}`)
+            .replace(/dt7=[\d.]+/, `dt7=${temperature}`);
           this.HeaterCooler_CoolingTemperature = temperature;
           this.log.debug('setCoolingTemperature: update CoolingTemperature: %s.', this.HeaterCooler_CoolingTemperature); // FV2105010
           this.sendGetRequest(this.set_control_info + '?' + query, _response => {
@@ -1455,15 +1421,7 @@ Daikin.prototype = {
   getHeatingTemperature(callback) {
           this.sendGetRequest(this.get_control_info, body => {
                   const responseValues = this.parseResponse(body);
-                  const stemp = Number.parseFloat(responseValues.stemp);
-                  const dt3 = Number.parseFloat(responseValues.dt3);
-                  this.log.debug('stemp: %s', stemp); // stemp usually holds the controllers target temperature
-                  this.log.debug('dt3: %s', dt3); // except when it is or was in dehumidification mode, then stemp equals "M" and the temperature is in dt3.
-                  let heatingThresholdTemperature;
-                  if (Number.isNaN(stemp) || responseValues.stemp === 'M') // FV 16.6.21 detected that stemp is sometimes a NaN
-                    heatingThresholdTemperature = dt3;
-                  else
-                    heatingThresholdTemperature = stemp;
+                  const heatingThresholdTemperature = getHeatingThresholdFromControl(responseValues);
                   this.log.debug('getHeatingTemperature: parsed float is %s', heatingThresholdTemperature);
                   callback(null, heatingThresholdTemperature);
               });
@@ -1481,12 +1439,20 @@ Daikin.prototype = {
 
   setHeatingTemperature(temperature, callback) {
           this.sendGetRequest(this.get_control_info, body => {
+            const responseValues = this.parseResponse(body);
+            if (shouldRouteHeatingSetToCooling(responseValues.mode)) {
+              this.log.info('setHeatingTemperature: unit is in cool mode, routing to setCoolingTemperature.');
+              this.setCoolingTemperature(temperature, callback);
+              return;
+            }
+
             temperature = Math.round(temperature * 2) / 2; // Daikin only supports steps of 0.5 degree
             temperature = temperature.toFixed(1); // Daikin always expects a precision of 1
             const query = body
               .replace(/,/g, '&')
               .replace(/stemp=[\d.]+/, `stemp=${temperature}`)
-              .replace(/dt3=[\d.]+/, `dt3=${temperature}`);
+              .replace(/dt3=[\d.]+/, `dt3=${temperature}`)
+              .replace(/dt5=[\d.]+/, `dt5=${temperature}`);
           this.HeaterCooler_HeatingTemperature = temperature;
           this.log.debug('setHeatingTemperature: update HeatingTemperature: %s.', this.HeaterCooler_HeatingTemperature); // FV2105010
           this.sendGetRequest(this.set_control_info + '?' + query, _response => {
