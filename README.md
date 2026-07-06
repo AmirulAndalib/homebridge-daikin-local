@@ -61,6 +61,20 @@ This plugin translates this percentage value as follows:
 The AC:
 Apple HomeKit settings allow you to enable or disable the swing aka oscillation mode. As HomeKit is limited to a true or false value, the plugin's configuration allows you to configure the type of swing mode. Available modes are "horizontal swing", "vertical swing" and "3D".
 
+**Swing / oscillate configuration (`swingMode`):**
+- `1` — vertical swing when Oscillate is **on** in HomeKit
+- `2` — horizontal swing when Oscillate is **on**
+- `3` — 3D swing (both directions) when Oscillate is **on**
+
+Turning swing off is done with the **Oscillate toggle** in the Home app, not via `swingMode`.
+
+**Oscillate visibility in the Home app:**
+Where the Oscillate control appears depends on how HomeKit groups the AC and Fan accessories:
+- **Combined tile:** fan speed may appear when scrolling the tile; Oscillate is often hidden.
+- **Separate tiles:** Oscillate usually appears in the **Settings** view (gear icon) on the AC tile and/or the Fan tile.
+
+Recommended workaround if Oscillate is missing: leave `disableFan` as `false` (default), then in the Home app long-press the accessory → **Settings** → **Show as Separate Tiles**, and use Oscillate from Settings on either tile. Setting `disableFan` to `true` hides the Fan tile but does not reliably surface fan speed or oscillate in the Home app on all iOS versions.
+
 Econo Mode:
 When enabled in the configuration, a switch will appear in HomeKit to toggle the AC's Econo mode. This energy-saving mode reduces power consumption by moderating the cooling/heating output.
 

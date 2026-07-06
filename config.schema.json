@@ -23,8 +23,20 @@
         "type": "string",
         "required": true,
         "default": "C",
-        "oneOf": [{"title": "Fahrenheit", "enum": ["F"]},
-                  {"title": "Celsius", "enum": ["C"]}]
+        "oneOf": [
+          {
+            "title": "Fahrenheit",
+            "enum": [
+              "F"
+            ]
+          },
+          {
+            "title": "Celsius",
+            "enum": [
+              "C"
+            ]
+          }
+        ]
       },
       "temperatureOffsetOutside": {
         "title": "Temperature-Offset-Outside",
@@ -56,7 +68,11 @@
         "type": "string",
         "title": "Controller Type",
         "description": "Select your WiFi controller type: 'Default' for standard Daikin WiFi modules (BRP069xxx), 'Skyfi' for Skyfi controllers, or 'Faikout' for ESP32-Faikout open-source controllers. Choose 'Faikout' if you installed the ESP32-Faikout firmware on an ESP32 chip.",
-        "enum": [ "Default", "Skyfi", "Faikout" ],
+        "enum": [
+          "Default",
+          "Skyfi",
+          "Faikout"
+        ],
         "default": "Default",
         "required": true
       },
@@ -68,31 +84,56 @@
       },
       "swingMode": {
         "title": "Swing Direction Preference",
-        "description": "Choose your preferred swing direction when oscillation is enabled in HomeKit. All controller types support this setting.",
+        "description": "Swing direction used when the Oscillate toggle is ON in HomeKit (1 = vertical, 2 = horizontal, 3 = 3D). This does not turn swing on or off \u2014 use the HomeKit Oscillate control for that. All controller types support this setting.",
         "type": "string",
         "default": "1",
         "required": true,
-        "oneOf": [       
-          { "title": "Vertical Swing (default)", "enum": ["1"] },
-          { "title": "Horizontal Swing", "enum": ["2"] },
-          { "title": "3D Swing (Both Directions)", "enum": ["3"] }
+        "oneOf": [
+          {
+            "title": "Vertical Swing (default)",
+            "enum": [
+              "1"
+            ]
+          },
+          {
+            "title": "Horizontal Swing",
+            "enum": [
+              "2"
+            ]
+          },
+          {
+            "title": "3D Swing (Both Directions)",
+            "enum": [
+              "3"
+            ]
+          }
         ]
       },
       "disableFan": {
         "title": "Disable Separate Fan Accessory",
-        "description": "When enabled (true), hides the separate Fan accessory from HomeKit main view. Fan speed and oscillation controls in AC settings remain available based on the settings below.",
+        "description": "When enabled (true), hides the separate Fan accessory from the Home app main view. The plugin still exposes fan speed and oscillation on the HeaterCooler service, but the Home app may not show these controls on all iOS versions. If Oscillate is hard to find, leave this disabled and show the AC and Fan as separate tiles in HomeKit.",
         "type": "boolean",
         "default": false
       },
       "fanMode": {
         "title": "Fan mode",
         "description": "If in DRY-mode, switching on the FAN in Apple-Home will start the AC in dry mode. If in FAN-mode, it will only activate the FAN.",
-        "type": "string", 
+        "type": "string",
         "default": "FAN",
         "required": true,
         "oneOf": [
-          { "title": "FAN", "enum": ["FAN"] },
-          { "title": "DRY", "enum": ["DRY"] }
+          {
+            "title": "FAN",
+            "enum": [
+              "FAN"
+            ]
+          },
+          {
+            "title": "DRY",
+            "enum": [
+              "DRY"
+            ]
+          }
         ]
       },
       "fanPowerMode": {
@@ -101,14 +142,17 @@
         "type": "string",
         "default": "FAN only",
         "required": true,
-        "enum": [ "FAN only", "Complete Device" ]
+        "enum": [
+          "FAN only",
+          "Complete Device"
+        ]
       },
       "fanName": {
-          "title": "FAN name",
-          "description": "The name of the fan. Only applies if the FAN has not been disabled.",
-          "type": "string",
-          "required": true,
-          "default": "Livingroom FAN"
+        "title": "FAN name",
+        "description": "The name of the fan. Only applies if the FAN has not been disabled.",
+        "type": "string",
+        "required": true,
+        "default": "Livingroom FAN"
       },
       "defaultMode": {
         "title": "Default operation mode",
@@ -116,9 +160,24 @@
         "type": "string",
         "default": "3",
         "oneOf": [
-          { "title": "Auto", "enum": ["1"] },
-          { "title": "Cool (default)", "enum": ["3"] },
-          { "title": "Heat", "enum": ["4"] }
+          {
+            "title": "Auto",
+            "enum": [
+              "1"
+            ]
+          },
+          {
+            "title": "Cool (default)",
+            "enum": [
+              "3"
+            ]
+          },
+          {
+            "title": "Heat",
+            "enum": [
+              "4"
+            ]
+          }
         ],
         "required": true
       },
@@ -182,7 +241,7 @@
       },
       "enableOscillationInSettings": {
         "title": "Enable Oscillation in AC Settings",
-        "description": "When enabled (default), adds an oscillation toggle directly in the AC accessory settings. This is independent of fan speed and separate Fan accessory settings.",
+        "description": "When enabled (default), exposes oscillation on the HeaterCooler service for the Home app AC settings panel. Visibility depends on HomeKit layout (combined vs separate tiles). The separate Fan accessory always carries oscillate when disableFan is false.",
         "type": "boolean",
         "default": true,
         "required": false
@@ -222,7 +281,7 @@
       },
       "minTemperature": {
         "title": "Minimum Temperature",
-        "description": "Minimum temperature setting for your AC unit in Celsius. Most Daikin units support 10°C for heating and 18°C for cooling.",
+        "description": "Minimum temperature setting for your AC unit in Celsius. Most Daikin units support 10\u00b0C for heating and 18\u00b0C for cooling.",
         "type": "number",
         "default": 18,
         "minimum": 5,
@@ -231,8 +290,8 @@
         "required": false
       },
       "maxTemperature": {
-        "title": "Maximum Temperature", 
-        "description": "Maximum temperature setting for your AC unit in Celsius. Most Daikin units support 30-32°C.",
+        "title": "Maximum Temperature",
+        "description": "Maximum temperature setting for your AC unit in Celsius. Most Daikin units support 30-32\u00b0C.",
         "type": "number",
         "default": 30,
         "minimum": 25,
@@ -242,7 +301,7 @@
       },
       "response": {
         "title": "Response",
-	      "description": "Timeout in milliseconds for the device to start responding.  Default: 2000 (2 seconds).",
+        "description": "Timeout in milliseconds for the device to start responding.  Default: 2000 (2 seconds).",
         "type": "integer",
         "default": 2000,
         "minimum": 2000,
@@ -250,7 +309,7 @@
       },
       "deadline": {
         "title": "Deadline",
-	      "description": "Timeout in milliseconds for the device to complete a response.  Default: 60000 (one minute).",
+        "description": "Timeout in milliseconds for the device to complete a response.  Default: 60000 (one minute).",
         "type": "integer",
         "default": 60000,
         "minimum": 10000,
@@ -258,7 +317,7 @@
       },
       "retries": {
         "title": "Retries",
-	      "description": "The plugin can retry to reconnect in case of a connection problem. Default: 5.",
+        "description": "The plugin can retry to reconnect in case of a connection problem. Default: 5.",
         "type": "integer",
         "default": 5,
         "minimum": 0,
@@ -269,7 +328,7 @@
   "layout": [
     {
       "type": "help",
-      "helpvalue": "<div style='background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 15px;'><h5 style='margin-top: 0;'>🔌 Controller Type Selection</h5><ul style='margin-bottom: 0;'><li><strong>Default:</strong> Standard Daikin WiFi modules (BRP069xxx series)</li><li><strong>Skyfi:</strong> Skyfi WiFi controller models</li><li><strong>Faikout:</strong> ESP32-Faikout open-source controller (uses JSON API instead of query strings) - <a href='https://github.com/revk/ESP32-Faikout' target='_blank' style='color: #1565c0;'>Visit ESP32-Faikout GitHub →</a> for installation guides and compatible hardware lists.</li></ul><p style='margin-bottom: 0; margin-top: 10px;'><em>Faikout controllers automatically use separate horizontal/vertical swing controls and JSON-based API endpoints.</em></p></div>"
+      "helpvalue": "<div style='background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 15px;'><h5 style='margin-top: 0;'>\ud83d\udd0c Controller Type Selection</h5><ul style='margin-bottom: 0;'><li><strong>Default:</strong> Standard Daikin WiFi modules (BRP069xxx series)</li><li><strong>Skyfi:</strong> Skyfi WiFi controller models</li><li><strong>Faikout:</strong> ESP32-Faikout open-source controller (uses JSON API instead of query strings) - <a href='https://github.com/revk/ESP32-Faikout' target='_blank' style='color: #1565c0;'>Visit ESP32-Faikout GitHub \u2192</a> for installation guides and compatible hardware lists.</li></ul><p style='margin-bottom: 0; margin-top: 10px;'><em>Faikout controllers automatically use separate horizontal/vertical swing controls and JSON-based API endpoints.</em></p></div>"
     },
     {
       "type": "section",
@@ -291,13 +350,13 @@
         "swingMode",
         {
           "type": "help",
-          "helpvalue": "<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>💡 Fan Control Options:</strong><br/><br/>1. <strong>In AC Settings</strong> (recommended): Adds fan speed slider and oscillation toggle directly in your AC accessory settings for quick access<br/><br/>2. <strong>Separate Fan Accessory</strong>: Creates a standalone fan accessory in HomeKit main view<br/><br/>You can enable both, just one, or neither based on your preference. The AC settings options work independently of the separate fan accessory.</div>"
+          "helpvalue": "<div style='background-color: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>\ud83d\udca1 Fan Control Options:</strong><br/><br/>1. <strong>In AC Settings</strong>: Adds fan speed and oscillation to the HeaterCooler service (may appear in the AC settings panel depending on your iOS/HomeKit version)<br/><br/>2. <strong>Separate Fan Accessory</strong> (most reliable for Oscillate): Keep <code>disableFan</code> off, then in the Home app choose <strong>Show as Separate Tiles</strong> \u2014 use Oscillate from the Settings (gear) view on the AC or Fan tile<br/><br/><strong>swingMode</strong> sets the direction when oscillate is ON (1 = vertical, 2 = horizontal, 3 = 3D), not on/off.</div>"
         },
         "enableFanSpeedInSettings",
         "enableOscillationInSettings",
         {
           "type": "help",
-          "helpvalue": "<div style='background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>↕↔ Independent Swing Switches (Faikout only):</strong><br/><br/>Enable separate switches for vertical and horizontal swing to get 3 swing modes:<br/>• <strong>Vertical only</strong> - up/down airflow<br/>• <strong>Horizontal only</strong> - left/right airflow<br/>• <strong>3D mode</strong> - both switches ON<br/><br/>These appear as separate toggles in the Home app and work independently of the main oscillation setting above.</div>"
+          "helpvalue": "<div style='background-color: #e8f5e9; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>\u2195\u2194 Independent Swing Switches (Faikout only):</strong><br/><br/>Enable separate switches for vertical and horizontal swing to get 3 swing modes:<br/>\u2022 <strong>Vertical only</strong> - up/down airflow<br/>\u2022 <strong>Horizontal only</strong> - left/right airflow<br/>\u2022 <strong>3D mode</strong> - both switches ON<br/><br/>These appear as separate toggles in the Home app and work independently of the main oscillation setting above.</div>"
         },
         "enableVerticalSwingSwitch",
         {
@@ -361,7 +420,7 @@
         "enableTemperatureSensor",
         {
           "type": "help",
-          "helpvalue": "<div style='background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>🌡️ Temperature Range Settings:</strong><br/>Configure the minimum and maximum temperature limits for your specific Daikin AC unit. Different models support different ranges.</div>"
+          "helpvalue": "<div style='background-color: #e7f3ff; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>\ud83c\udf21\ufe0f Temperature Range Settings:</strong><br/>Configure the minimum and maximum temperature limits for your specific Daikin AC unit. Different models support different ranges.</div>"
         },
         "minTemperature",
         "maxTemperature"
@@ -374,7 +433,7 @@
       "items": [
         {
           "type": "help",
-          "helpvalue": "<div style='background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>🌐 Faikout WebSocket Settings:</strong><br/>For Faikout controllers (ESP32-Faikout), quiet logging reduces log noise from status updates while maintaining full functionality.</div>"
+          "helpvalue": "<div style='background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>\ud83c\udf10 Faikout WebSocket Settings:</strong><br/>For Faikout controllers (ESP32-Faikout), quiet logging reduces log noise from status updates while maintaining full functionality.</div>"
         },
         "quietWebSocketLogging",
         "OpenSSL3",

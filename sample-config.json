@@ -5,9 +5,7 @@
         "port": 51826,
         "pin": "000-00-000"
     },
-
     "description": "This is an example configuration file. Make sure to adapt it to list the IP of your Daikin Controller(s).",
-
     "accessories": [
         {
             "accessory": "Daikin-Local",
@@ -34,7 +32,7 @@
             "apiroute": "https://192.168.1.51",
             "temperature_unit": "C",
             "uuid": "01a50f38ce0a40cbac38024fc6faaf38",
-            "swingMode": "0",
+            "swingMode": "1",
             "defaultMode": "1",
             "enableHumiditySensor": false,
             "enableTemperatureSensor": true,
@@ -69,5 +67,5 @@
             "retries": 5
         }
     ],
-    "platforms":[]
+    "platforms": []
 }
