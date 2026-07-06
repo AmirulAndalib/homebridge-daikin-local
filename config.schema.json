@@ -76,12 +76,6 @@
         "default": "Default",
         "required": true
       },
-      "OpenSSL3": {
-        "title": "OpenSSL3 support",
-        "description": "Use new OpenSSL3 SSL_OP_ALLOW_UNSAFE_LEGACY_RENEGOTIATION option",
-        "type": "boolean",
-        "default": false
-      },
       "swingMode": {
         "title": "Swing Direction Preference",
         "description": "Swing direction used when the Oscillate toggle is ON in HomeKit (1 = vertical, 2 = horizontal, 3 = 3D). This does not turn swing on or off \u2014 use the HomeKit Oscillate control for that. All controller types support this setting.",
@@ -436,7 +430,10 @@
           "helpvalue": "<div style='background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>\ud83c\udf10 Faikout WebSocket Settings:</strong><br/>For Faikout controllers (ESP32-Faikout), quiet logging reduces log noise from status updates while maintaining full functionality.</div>"
         },
         "quietWebSocketLogging",
-        "OpenSSL3",
+        {
+          "type": "help",
+          "helpvalue": "<div style='background-color: #d1ecf1; padding: 10px; border-radius: 5px; margin: 10px 0;'><strong>HTTPS / TLS:</strong><br/>No configuration needed. On Node.js 18+ (OpenSSL 3.x), the plugin automatically uses a legacy TLS agent for HTTPS controllers (required by many Daikin units, e.g. BRP072). Check Homebridge logs for <code>TLS: HTTPS apiroute</code> at startup.</div>"
+        },
         "response",
         "deadline",
         "retries"

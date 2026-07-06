@@ -222,8 +222,6 @@ function Daikin(log, config) {
 
   /* eslint no-implicit-coercion: "warn" */
 
-  this.OpenSSL3 = !!config.OpenSSL3;
-
   this.disableFan = !!config.disableFan;
 
   this.enableHumiditySensor = !!config.enableHumiditySensor;
@@ -289,6 +287,7 @@ function Daikin(log, config) {
   this.log.info('accessory name: ' + this.name);
   this.log.info('accessory ip: ' + this.apiIP);
   this.log.debug('system: ' + this.system);
+  logHttpsTlsPath(this.log, config.apiroute);
 
   // Setting defaults for early response to improve HomeKit performance
   this.HeaterCooler_Active = Characteristic.Active.INACTIVE;
@@ -389,6 +388,36 @@ const SECURE_OPS
 // Runtime check for OpenSSL 3 (Node 18+/20 typically link to OpenSSL 3.x)
 function isOpenSSL3() {
   return (process.versions.openssl || '').startsWith('3.');
+}
+
+function applyHttpsTls(request) {
+  if (isOpenSSL3()) {
+    return request.agent(getLegacyAgent());
+  }
+
+  if (typeof request.disableTLSCerts === 'function') {
+    return request.disableTLSCerts();
+  }
+
+  return request.agent(getDefaultAgent());
+}
+
+function logHttpsTlsPath(log, apiroute) {
+  if (!apiroute || !apiroute.startsWith('https://')) {
+    log.debug('TLS: apiroute uses HTTP — plain HTTP agent, no TLS');
+    return;
+  }
+
+  const openssl = process.versions.openssl || 'unknown';
+  if (isOpenSSL3()) {
+    log.info(
+      'TLS: HTTPS apiroute — using legacy TLS agent (Node OpenSSL %s; legacy renegotiation enabled automatically)',
+      openssl,
+    );
+    return;
+  }
+
+  log.info('TLS: HTTPS apiroute — using standard HTTPS agent (Node OpenSSL %s)', openssl);
 }
 
 // Lazy singletons to avoid per-request Agent churn
@@ -528,16 +557,7 @@ Daikin.prototype = {
       }
 
       if (urlProtocol === 'https:') {
-        if (isOpenSSL3()) {
-          // Node linked against OpenSSL 3: enable legacy reneg + lock to TLS1.2
-          request = request.agent(getLegacyAgent());
-        } else if (typeof request.disableTLSCerts === 'function') {
-          // OpenSSL 1.1.1 path (legacy behavior)
-          request = request.disableTLSCerts();
-        } else {
-          // Some superagent builds dropped disableTLSCerts(); use an agent fallback
-          request = request.agent(getDefaultAgent());
-        }
+        request = applyHttpsTls(request);
       } else {
         // http: use an http.Agent (do NOT use https.Agent for plain http URLs)
         request = request.agent(getDefaultHttpAgent());
@@ -637,13 +657,7 @@ Daikin.prototype = {
       }
 
       if (urlProtocol === 'https:') {
-        if (isOpenSSL3()) {
-          request = request.agent(getLegacyAgent());
-        } else if (typeof request.disableTLSCerts === 'function') {
-          request = request.disableTLSCerts();
-        } else {
-          request = request.agent(getDefaultAgent());
-        }
+        request = applyHttpsTls(request);
       } else {
         request = request.agent(getDefaultHttpAgent());
       }
