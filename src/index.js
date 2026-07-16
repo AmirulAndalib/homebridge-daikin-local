@@ -25,6 +25,7 @@ const {
   parseTemperatureDisplayUnits,
   daikinSpeedToRaw,
   rawToDaikinSpeed,
+  daikinToFaikinFanRate,
   isDaikinAutoMode,
   mapDaikinModeToCurrentHeaterCoolerState,
   mapDaikinModeToTargetHeaterCoolerState,
@@ -257,7 +258,6 @@ function Daikin(log, config) {
       this.get_model_info = this.apiroute + '/aircon/get_model_info';
       this.set_control_info = this.apiroute + '/aircon/set_control_info';
       this.basic_info = this.apiroute + '/common/basic_info';
-      this.faikin_control = this.apiroute + '/control'; // Faikout JSON control endpoint
       break;}
 
     default: {
@@ -626,123 +626,10 @@ Daikin.prototype = {
   },
 
   sendFaikinControl(controlData, callback) {
+    // Faikout firmware has no HTTP JSON control endpoint (POST /control returns
+    // 405); its own web UI sends native JSON commands over the /status WebSocket.
     this.log.debug('sendFaikinControl: Sending control command to Faikout: %s', JSON.stringify(controlData));
-
-    const path = this.apiroute + '/control';
-
-    this._resolveHost(resolvedIP => {
-      const resolvedPath = replaceHostInUrl(path, resolvedIP);
-
-      let urlProtocol = 'https:';
-      try {
-        urlProtocol = new URL(resolvedPath).protocol;
-      } catch {
-        urlProtocol = 'https:';
-      }
-
-      let request = superagent
-        .post(resolvedPath)
-        .send(controlData)
-        .set('Content-Type', 'application/json')
-        .set('User-Agent', 'superagent')
-        .set('Host', resolvedIP)
-        .retry(this.retries)
-        .timeout({
-          response: this.response,
-          deadline: this.deadline,
-        });
-
-      if (this.uuid !== '') {
-        request = request.set('X-Daikin-uuid', this.uuid);
-      }
-
-      if (urlProtocol === 'https:') {
-        request = applyHttpsTls(request);
-      } else {
-        request = request.agent(getDefaultHttpAgent());
-      }
-
-      request.end((error, response) => {
-        if (error) {
-          this.log.warn('sendFaikinControl: JSON control endpoint failed (%s), trying WebSocket fallback', error.message);
-          // Fallback to WebSocket for Faikout S21 protocol (econo/powerful/quiet modes)
-          this.sendFaikinWebSocketCommand(controlData, callback);
-          return;
-        }
-
-        const body = response && (response.text ?? (typeof response.body === 'string' ? response.body : JSON.stringify(response.body)));
-        this.log.debug('sendFaikinControl: response from API: %s', body);
-        return callback && callback(null, body);
-      });
-    });
-  },
-
-  sendFaikinControlFallback(controlData, callback) {
-    this.log.info('sendFaikinControlFallback: Converting JSON to traditional Daikin API: %s', JSON.stringify(controlData));
-
-    // Get current status first, then modify it with our changes
-    this.sendGetRequest(this.get_control_info, body => {
-      let query = body.replace(/,/g, '&');
-
-      // Convert JSON control data to query string parameters
-      if (controlData.power !== undefined) {
-        query = query.replace(/pow=[01]/, `pow=${controlData.power ? '1' : '0'}`);
-      }
-
-      if (controlData.mode !== undefined) {
-        const modeMap = {
-          H: '4', C: '3', A: '1', D: '2', F: '6',
-        };
-        const mode = modeMap[controlData.mode] || controlData.mode;
-        query = query.replace(/mode=[01234567]/, `mode=${mode}`);
-      }
-
-      if (controlData.temp !== undefined) {
-        const temp = Number.parseFloat(controlData.temp).toFixed(1);
-        query = query.replace(/stemp=[\d.]+/, `stemp=${temp}`);
-        query = query.replace(/dt3=[\d.]+/, `dt3=${temp}`);
-      }
-
-      if (controlData.fan !== undefined) {
-        query = query.replace(/f_rate=[01234567ABQ]/, `f_rate=${controlData.fan}`);
-        query = query.replace(/b_f_rate=[01234567ABQ]/, `b_f_rate=${controlData.fan}`);
-      }
-
-      if (controlData.swingh !== undefined || controlData.swingv !== undefined) {
-        // For traditional API, use f_dir: 0=no swing, 1=vertical, 2=horizontal, 3=both
-        const swingH = controlData.swingh;
-        const swingV = controlData.swingv;
-        let swingMode = '0';
-        if (swingH && swingV) swingMode = '3';
-        else if (swingV) swingMode = '1';
-        else if (swingH) swingMode = '2';
-        query = query.replace(/f_dir=[0123]/, `f_dir=${swingMode}`);
-        query = query.replace(/b_f_dir=[0123]/, `b_f_dir=${swingMode}`);
-      }
-
-      if (controlData.econo !== undefined) {
-        // Add en_economode parameter if not present in response
-        if (query.includes('en_economode=')) {
-          query = query.replace(/en_economode=[01]/, `en_economode=${controlData.econo ? '1' : '0'}`);
-        } else {
-          query += `&en_economode=${controlData.econo ? '1' : '0'}`;
-        }
-      }
-
-      if (controlData.powerful !== undefined) {
-        // Add en_powerful parameter if not present in response
-        if (query.includes('en_powerful=')) {
-          query = query.replace(/en_powerful=[01]/, `en_powerful=${controlData.powerful ? '1' : '0'}`);
-        } else {
-          query += `&en_powerful=${controlData.powerful ? '1' : '0'}`;
-        }
-      }
-
-      this.log.info('sendFaikinControlFallback: Using traditional API query: %s', query);
-      this.sendGetRequest(this.set_control_info + '?' + query, response => {
-        callback && callback(null, response);
-      }, {skipCache: true, skipQueue: true});
-    }, {skipCache: true});
+    this.sendFaikinWebSocketCommand(controlData, callback);
   },
 
   // WebSocket connection management for Faikout
@@ -1895,8 +1782,9 @@ getFanSpeed: function (callback) {
     this.log.debug('setFanSpeed: this translates to Daikin f_rate value: %s', value);
 
     if (this.isFaikin) {
-      // Faikout: use JSON control API to set fan speed only, without affecting swing
-      const controlData = {fan: String(value)};
+      // Faikout: set fan speed only, without affecting swing.
+      // Native control JSON expects A/Q/1-5 rather than Daikin A/B/3-7.
+      const controlData = {fan: daikinToFaikinFanRate(value)};
       this.log.info('setFanSpeed (Faikout): Sending fan control: %s', JSON.stringify(controlData));
       this.Fan_Speed = this.daikinSpeedToRaw(value);
       this.log.debug('setFanSpeed: update Speed: %s.', this.Fan_Speed);

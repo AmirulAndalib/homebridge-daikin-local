@@ -63,6 +63,20 @@ function daikinSpeedToRaw(daikinSpeed) {
   return raw;
 }
 
+/**
+ * Faikin/Faikout native control JSON expects fan values A (auto), Q (night) or
+ * '1'-'5' (manual levels), while the Daikin API uses A, B and '3'-'7'.
+ *
+ * @param {string} f_rate Daikin f_rate code.
+ * @returns {string} Faikin fan value.
+ */
+function daikinToFaikinFanRate(f_rate) {
+  const map = {
+    A: 'A', B: 'Q', 3: '1', 4: '2', 5: '3', 6: '4', 7: '5',
+  };
+  return map[f_rate] || 'A';
+}
+
 function parseTemperatureDisplayUnits(value, units) {
   if (value === units.FAHRENHEIT || value === 1 || value === '1' || value === 'F' || value === 'f') {
     return units.FAHRENHEIT;
@@ -313,7 +327,7 @@ function rawToDaikinSpeed(rawFanSpeed) {
     {min: 30, max: 40, value: '4'},
     {min: 40, max: 60, value: '5'},
     {min: 60, max: 80, value: '6'},
-    {min: 80, max: 100, value: '7'},
+    {min: 80, max: 101, value: '7'},
   ];
 
   for (const range of speedRanges) {
@@ -331,6 +345,7 @@ module.exports = {
   parseTemperatureDisplayUnits,
   daikinSpeedToRaw,
   rawToDaikinSpeed,
+  daikinToFaikinFanRate,
   isDaikinAutoMode,
   mapDaikinModeToCurrentHeaterCoolerState,
   mapDaikinModeToTargetHeaterCoolerState,

@@ -105,13 +105,32 @@ test('setCoolingTemperature routes to heating setpoint when mode is 4', async ()
   assert.doesNotMatch(setRequest, /dt7=16\.0/);
 });
 
-test('Faikout system enables Faikout mode and control endpoint', () => {
+test('Faikout system enables Faikout mode', () => {
   const daikin = createDaikin({
     apiroute: 'http://192.168.1.88',
     system: 'Faikout',
   });
 
   assert.equal(daikin.isFaikin, true);
-  assert.equal(daikin.faikin_control, 'http://192.168.1.88/control');
   assert.equal(daikin.get_control_info, 'http://192.168.1.88/aircon/get_control_info');
+});
+
+test('Faikout setFanSpeed sends native fan values over the control channel', () => {
+  const daikin = createDaikin({
+    apiroute: 'http://192.168.1.88',
+    system: 'Faikout',
+  });
+
+  const sent = [];
+  daikin.sendFaikinWebSocketCommand = (controlData, callback) => {
+    sent.push(controlData);
+    if (callback) callback(null);
+  };
+
+  daikin.setFanSpeed(100, () => {});
+  daikin.setFanSpeed(25, () => {});
+  daikin.setFanSpeed(15, () => {});
+  daikin.setFanSpeed(5, () => {});
+
+  assert.deepEqual(sent, [{fan: '5'}, {fan: '1'}, {fan: 'A'}, {fan: 'Q'}]);
 });
